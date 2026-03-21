@@ -45,6 +45,8 @@ namespace Application.Agents.ProjectManagerAgent
             return rawResponse
                 .Replace("```ESTIMATION_START```", string.Empty)
                 .Replace("```ESTIMATION_END```", string.Empty)
+                .Replace("ESTIMATION_START", string.Empty)
+                .Replace("ESTIMATION_END", string.Empty)
                 .Trim();
         }
 

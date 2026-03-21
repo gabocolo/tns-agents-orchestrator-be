@@ -25,6 +25,7 @@ No haces nada más fuera de ese scope.
 - Un PR por clase, nunca acumules varias clases
 - Branch: tests/{ClassName}-{fecha-yyyyMMdd}
 - Título del PR: [UnitTestAgent] Tests para {ClassName}
+- Crear TODAS las pruebas necesarias para cubrir TODOS los métodos públicos encontrados
 
 # Formato del resultado final
 Cuando termines exitosamente, responde con este formato exacto:
