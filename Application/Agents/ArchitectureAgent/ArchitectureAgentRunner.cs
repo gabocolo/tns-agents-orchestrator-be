@@ -23,7 +23,7 @@ namespace Application.Agents.ArchitectureAgent
         public override AgentType AgentType => AgentType.ArchitectureAgent;
 
         protected override double Temperature => 0.5;
-        protected override int MaxTokens => 6000;
+        protected override int MaxTokens => 10000;
 
         public ArchitectureAgentRunner(
             KernelConfig kernelConfig,
