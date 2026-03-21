@@ -3,9 +3,7 @@
     public enum AgentType
     {
         UnitTestAgent,
-        ProjectManagerAgent
-        // Futuros agentes
-        // SolutionArchitectAgent,
-        // InfraAgent,
+        ProjectManagerAgent,
+        ArchitectureAgent
     }
 }
