@@ -206,8 +206,9 @@ namespace Agent.Api.Controllers
             catch (KeyNotFoundException) { return NotFound(); }
         }
 
-        // ─── POST api/proposals/{id}/decide ──────────────────────────────────
+        // ─── POST proposals/{id}/decisions (y /decide por compatibilidad) ──
 
+        [HttpPost("{id:guid}/decisions")]
         [HttpPost("{id:guid}/decide")]
         [ProducesResponseType(typeof(ProposalDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
