@@ -92,7 +92,55 @@ namespace Agent.Api.Controllers
             );
         }
 
-        // ─── POST api/proposals/{id}/submit ───────────────────────────────────
+        // ─── POST proposals/{id}/iterations ──────────────────────────────────
+        // "Guardar como iteración" — checkpoint manual del usuario
+
+        [HttpPost("{id:guid}/iterations")]
+        [ProducesResponseType(typeof(ProposalIterationDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AddIteration(
+            Guid id,
+            [FromBody] AddIterationHttpRequest request,
+            CancellationToken ct)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var iteration = new ProposalIteration
+                {
+                    Content       = request.Content,
+                    Components    = request.Components,
+                    TeamSize      = request.TeamSize,
+                    DurationWeeks = request.DurationWeeks,
+                    BudgetUsd     = request.BudgetUsd,
+                    RiskLevel     = request.RiskLevel
+                };
+
+                var saved = await _service.AddIterationAsync(id, iteration, ct);
+
+                _logger.LogInformation(
+                    "[ProposalsController] Iteración v{Version} guardada. ProposalId={Id}",
+                    saved.Version, id);
+
+                return StatusCode(StatusCodes.Status201Created, new ProposalIterationDto
+                {
+                    Version       = saved.Version,
+                    Content       = saved.Content,
+                    Components    = saved.Components,
+                    TeamSize      = saved.TeamSize,
+                    DurationWeeks = saved.DurationWeeks,
+                    BudgetUsd     = saved.BudgetUsd,
+                    RiskLevel     = saved.RiskLevel.ToString(),
+                    CreatedAt     = saved.CreatedAt
+                });
+            }
+            catch (KeyNotFoundException) { return NotFound(); }
+        }
+
+        // ─── POST proposals/{id}/submit ───────────────────────────────────────
 
         [HttpPost("{id:guid}/submit")]
         [ProducesResponseType(typeof(ProposalDto), StatusCodes.Status200OK)]

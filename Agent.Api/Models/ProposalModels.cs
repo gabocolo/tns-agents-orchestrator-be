@@ -75,6 +75,22 @@ namespace Agent.Api.Models
         public required string UserId { get; init; }
     }
 
+    public class AddIterationHttpRequest
+    {
+        /// <summary>
+        /// Markdown completo de la última respuesta del agente.
+        /// El frontend lo toma de lastCompletedContent y lo envía aquí.
+        /// </summary>
+        [Required]
+        public required string Content { get; init; }
+
+        public List<string> Components { get; init; } = new();
+        public int TeamSize { get; init; }
+        public int DurationWeeks { get; init; }
+        public decimal BudgetUsd { get; init; }
+        public RiskLevel RiskLevel { get; init; } = RiskLevel.Medium;
+    }
+
     // ─── Response Models ──────────────────────────────────────────────────────
 
     public class ProposalDto
