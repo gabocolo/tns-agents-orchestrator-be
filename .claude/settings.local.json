@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(curl -s http://localhost:6333/healthz)",
+      "Bash(curl -s http://localhost:6334)"
     ]
   }
 }

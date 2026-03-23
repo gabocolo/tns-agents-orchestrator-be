@@ -8,6 +8,7 @@ using Domain.Interfaces;
 using Infrastructure.Logging;
 using Infrastructure.Persistence;
 using Infrastructure.Plugins;
+using Infrastructure.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,8 @@ namespace Infrastructure.DependencyInjection
     {
         public static IServiceCollection AddInfrastructure(
             this IServiceCollection services,
-            InfrastructureConfig config)
+            InfrastructureConfig config,
+            KnowledgeBaseConfig? knowledgeBaseConfig = null)
         {
             // Config de Azure DevOps — compartida por los plugins
             var devOpsConfig = new AzureDevOpsConfig
@@ -85,6 +87,10 @@ namespace Infrastructure.DependencyInjection
 
             // Servicio de propuestas
             services.AddSingleton<IProposalService, ProposalService>();
+
+            // Knowledge Base (Qdrant RAG) — requerido por ArchitectureAgentRunner
+            if (knowledgeBaseConfig != null)
+                services.AddKnowledgeBase(knowledgeBaseConfig, config.OpenAiApiKey);
 
             // Agentes — registrados como IAgentRunner para que el Dispatcher los encuentre
             services.AddSingleton<IAgentRunner, UnitTestAgentRunner>();

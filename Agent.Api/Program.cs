@@ -1,6 +1,8 @@
 using Application.Proposals;
 using Domain.Interfaces;
+using Infrastructure.DependencyInjection;
 using Infrastructure.Persistence;
+using Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +38,17 @@ builder.Services.AddSingleton<IProposalRepository>(sp =>
     ));
 
 builder.Services.AddSingleton<IProposalService, ProposalService>();
+
+// ── Knowledge Base (Qdrant ingestion) ────────────────────────────────────────
+var kbConfig = builder.Configuration
+    .GetSection("KnowledgeBase")
+    .Get<KnowledgeBaseConfig>() ?? new KnowledgeBaseConfig();
+
+var openAiApiKey = builder.Configuration["Infrastructure:OpenAiApiKey"]
+    ?? throw new InvalidOperationException(
+        "Configura 'Infrastructure:OpenAiApiKey' en appsettings.");
+
+builder.Services.AddKnowledgeBase(kbConfig, openAiApiKey);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
