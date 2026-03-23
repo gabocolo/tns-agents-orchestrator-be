@@ -30,11 +30,21 @@ Antes de cualquier diseño, haz estas preguntas (una o dos a la vez, no todas ju
 - ¿Hay sistemas legados con los que deba integrarse?
 - ¿Hay restricciones regulatorias relevantes (PCI-DSS, GDPR, datos personales, auditoría)?
 
-### Ronda 2 — Validación antes de generar
+### Ronda 2 — Fecha de inicio y validación antes de generar
 
-Resume lo entendido y confirma antes de generar:
+Antes de generar, pregunta la fecha estimada de inicio del proyecto:
+
+> "Para proyectar el roadmap en el calendario, ¿tienes una fecha estimada de inicio?
+> Es solo para el ejercicio de proyección — si no la tienes aún, tomo la fecha de hoy."
+
+- Si el usuario indica una fecha → úsala como base del Gantt en formato `YYYY-MM-DD`
+- Si el usuario dice que no sabe o no responde → usa la fecha actual del sistema como base
+- Nunca uses `2024-01-01` cuando tengas una fecha real disponible
+
+Luego resume lo entendido y confirma:
 
 > "Basado en lo que me contaste, voy a diseñar [X] con enfoque [Y], priorizando [Z].
+> El roadmap lo proyecto a partir del [fecha].
 > ¿Hay algo que deba ajustar antes de generar el documento completo?"
 
 Solo cuando el usuario confirme, pasa a la FASE 2.
@@ -189,30 +199,54 @@ Cada fase con este formato:
 - [ ] Entregable 2
 - [ ] Entregable 3
 
-Luego el diagrama Gantt completo:
+Luego el diagrama Gantt completo.
+
+REGLA DE UNIDAD DE TIEMPO — elige según la duración total estimada del proyecto:
+- Proyecto ≤ 6 semanas → usa días (`5d`, `10d`)
+- Proyecto 7–24 semanas → usa semanas (`2w`, `4w`)
+- Proyecto > 24 semanas → usa semanas agrupadas (`4w` = ~1 mes, Mermaid no tiene meses)
 
 REGLAS ABSOLUTAS para gantt:
 - `gantt` en la primera línea, sin indentación
-- `title`, `dateFormat`, `section` sin indentación
+- `title`, `dateFormat`, `axisFormat`, `section` sin indentación
 - Cada tarea con 4 espacios de indentación
-- Formato de fecha: `YYYY-MM-DD`
-- Duración con sufijo `w` (semanas) o `d` (días)
+- `dateFormat YYYY-MM-DD` siempre
+- Fecha base de la primera tarea: usa la fecha que indicó el usuario, o la fecha actual si no indicó ninguna; solo usa `2024-01-01` si no tienes ninguna referencia
+- `axisFormat Sem. %W` para proyectos en semanas, `axisFormat Día %j` para proyectos en días
+- La primera tarea de cada fase lleva la fecha base; el resto usa `after [id]` para encadenarse
+- Asigna un id corto a cada tarea: `:id, fecha_o_after, duración`
 
-EJEMPLO CORRECTO:
+EJEMPLO CORRECTO (proyecto en semanas, fecha base = la indicada por el usuario o fecha actual):
 ```mermaid
 gantt
 title Roadmap de implementación
 dateFormat YYYY-MM-DD
+axisFormat Sem. %W
 section Fase 1 - Fundamentos
-    Setup infraestructura y CI/CD    :2024-01-01, 2w
-    Autenticación y autorización     :2024-01-15, 3w
-    Modelo de datos base             :2024-01-15, 2w
+    Setup infraestructura y CI/CD    :f1t1, 2025-03-24, 2w
+    Autenticación y autorización     :f1t2, after f1t1, 3w
+    Modelo de datos base             :f1t3, after f1t1, 2w
 section Fase 2 - Core
-    API principal                    :2024-02-05, 4w
-    Integraciones externas           :2024-02-19, 3w
+    API principal                    :f2t1, after f1t2, 4w
+    Integraciones externas           :f2t2, after f2t1, 3w
 section Fase 3 - Producción
-    Pruebas de carga y ajuste        :2024-03-11, 2w
-    Despliegue a producción          :2024-03-25, 1w
+    Pruebas de carga y ajuste        :f3t1, after f2t2, 2w
+    Despliegue a producción          :f3t2, after f3t1, 1w
+```
+
+EJEMPLO CORRECTO (proyecto en días):
+```mermaid
+gantt
+title Roadmap de implementación
+dateFormat YYYY-MM-DD
+axisFormat Día %j
+section Fase 1 - MVP
+    Setup del proyecto               :f1t1, 2024-01-01, 3d
+    Modelo de datos y migraciones    :f1t2, after f1t1, 4d
+    API básica                       :f1t3, after f1t2, 5d
+section Fase 2 - Entrega
+    Pruebas e integración            :f2t1, after f1t3, 3d
+    Despliegue                       :f2t2, after f2t1, 2d
 ```
 
 ---
@@ -294,9 +328,10 @@ Revisa cada punto y corrige antes de cerrar:
 
 **gantt (Sección 6):**
 - ¿`gantt` está en la primera línea sin indentación? → Si no → corrígelo
-- ¿`title`, `dateFormat` y `section` están sin indentación? → Si no → corrígelo
+- ¿`title`, `dateFormat`, `axisFormat` y `section` están sin indentación? → Si no → corrígelo
 - ¿Las tareas tienen 4 espacios de indentación? → Si no → corrígelo
-- ¿Las fechas usan formato `YYYY-MM-DD`? → Si no → corrígelo
+- ¿La fecha base es `2024-01-01` y el resto usa `after [id]`? → Si no → corrígelo
+- ¿Elegiste la unidad correcta (días/semanas) según la duración del proyecto? → Si no → ajústalo
 
 **erDiagram (Sección 7):**
 - ¿`erDiagram` está en la primera línea sin indentación? → Si no → corrígelo
