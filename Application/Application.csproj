@@ -9,11 +9,13 @@
   <ItemGroup>
     <None Remove="Agents\ProjectManagerAgent\Prompts\SystemPrompt.txt" />
     <None Remove="Agents\UnitTestAgent\Prompts\SystemPrompt.txt" />
+    <None Remove="Agents\ArchitectureAgent\Prompts\SystemPrompt.txt" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Agents\ProjectManagerAgent\Prompts\SystemPrompt.txt" />
     <EmbeddedResource Include="Agents\UnitTestAgent\Prompts\SystemPrompt.txt" />
+    <EmbeddedResource Include="Agents\ArchitectureAgent\Prompts\SystemPrompt.txt" />
   </ItemGroup>
 
   <ItemGroup>

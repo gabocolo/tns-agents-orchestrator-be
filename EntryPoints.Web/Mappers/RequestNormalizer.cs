@@ -47,6 +47,7 @@ namespace EntryPoints.Web.Mappers
             {
                 "unittestagent" => AgentType.UnitTestAgent,
                 "projectmanageragent" => AgentType.ProjectManagerAgent,
+                "architectureagent" => AgentType.ArchitectureAgent,
                 _ => throw new ArgumentException($"Agente desconocido: '{agent}'")
             };
         }

@@ -1,11 +1,14 @@
-﻿using Application.Agents.ProjectManagerAgent;
+﻿using Application.Agents.ArchitectureAgent;
+using Application.Agents.ProjectManagerAgent;
 using Application.Agents.UnitTestAgent;
 using Application.Orchestration;
+using Application.Proposals;
 using Application.Shared;
 using Domain.Interfaces;
 using Infrastructure.Logging;
 using Infrastructure.Persistence;
 using Infrastructure.Plugins;
+using Infrastructure.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -15,7 +18,8 @@ namespace Infrastructure.DependencyInjection
     {
         public static IServiceCollection AddInfrastructure(
             this IServiceCollection services,
-            InfrastructureConfig config)
+            InfrastructureConfig config,
+            KnowledgeBaseConfig? knowledgeBaseConfig = null)
         {
             // Config de Azure DevOps — compartida por los plugins
             var devOpsConfig = new AzureDevOpsConfig
@@ -69,12 +73,29 @@ namespace Infrastructure.DependencyInjection
                 ));
 
             services.AddSingleton<IAgentOutputHandler, ProjectEstimationOutputHandler>();
+            services.AddSingleton<IAgentOutputHandler, ArchitectureIterationOutputHandler>();
+
             // ConversationService genérico — recibe todos los handlers automáticamente
             services.AddSingleton<ConversationService>();
+
+            // Repositorio de propuestas
+            services.AddSingleton<IProposalRepository>(sp =>
+                new ProposalRepository(
+                    config.SqlConnectionString,
+                    sp.GetRequiredService<ILogger<ProposalRepository>>()
+                ));
+
+            // Servicio de propuestas
+            services.AddSingleton<IProposalService, ProposalService>();
+
+            // Knowledge Base (Qdrant RAG) — requerido por ArchitectureAgentRunner
+            if (knowledgeBaseConfig != null)
+                services.AddKnowledgeBase(knowledgeBaseConfig, config.OpenAiApiKey);
 
             // Agentes — registrados como IAgentRunner para que el Dispatcher los encuentre
             services.AddSingleton<IAgentRunner, UnitTestAgentRunner>();
             services.AddSingleton<IAgentRunner, ProjectManagerAgentRunner>();
+            services.AddSingleton<IAgentRunner, ArchitectureAgentRunner>();
 
             return services;
         }

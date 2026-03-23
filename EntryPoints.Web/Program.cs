@@ -1,4 +1,5 @@
 using Infrastructure.DependencyInjection;
+using Infrastructure.Settings;
 using Serilog;
 using Microsoft.OpenApi;
 
@@ -37,7 +38,11 @@ var infraConfig = builder.Configuration
     ?? throw new InvalidOperationException(
         "Falta la sección 'Infrastructure' en appsettings.json");
 
-builder.Services.AddInfrastructure(infraConfig);
+var kbConfig = builder.Configuration
+    .GetSection("KnowledgeBase")
+    .Get<KnowledgeBaseConfig>();
+
+builder.Services.AddInfrastructure(infraConfig, kbConfig);
 
 
 // ── API ───────────────────────────────────────────────────────────────────────

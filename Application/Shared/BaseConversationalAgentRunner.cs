@@ -1,6 +1,7 @@
 ﻿using Domain.Entities;
 using Domain.Interfaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 
@@ -58,15 +59,17 @@ namespace Application.Shared
                 request, sessionId, systemPrompt, ct
             );
 
+            // 3b. Pre-retrieval RAG — inyectar contexto antes de llamar al LLM
+            var ragContext = await FetchRagContextAsync(request.UserMessage, ct);
+            if (!string.IsNullOrEmpty(ragContext))
+                chatHistory.AddSystemMessage(ragContext);
+
             // 4. Llama al LLM
             var kernel = KernelFactory.Create(KernelConfig, LoggerFactory);
+            ConfigureKernel(kernel);
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
-            var settings = new OpenAIPromptExecutionSettings
-            {
-                Temperature = Temperature,
-                MaxTokens = MaxTokens
-            };
+            var settings = BuildExecutionSettings();
 
             var response = await chatService.GetChatMessageContentAsync(
                 chatHistory, settings, kernel, ct
@@ -114,6 +117,28 @@ namespace Application.Shared
         protected virtual int MaxTokens => 3000;
 
         /// <summary>
+        /// Pre-retrieval RAG hook. Se llama ANTES de cada invocación al LLM.
+        /// El texto retornado se inyecta como sistema message en el chat history,
+        /// garantizando que el LLM vea los lineamientos sin depender de function calling.
+        /// Retorna null si el agente no usa RAG.
+        /// </summary>
+        protected virtual Task<string?> FetchRagContextAsync(string userMessage, CancellationToken ct)
+            => Task.FromResult<string?>(null);
+
+        /// <summary>
+        /// Hook llamado después de crear el Kernel.
+        /// Los agentes concretos pueden importar plugins o configurar el kernel aquí.
+        /// </summary>
+        protected virtual void ConfigureKernel(Kernel kernel) { }
+
+        /// <summary>
+        /// Construye los settings de ejecución del LLM.
+        /// Los agentes concretos pueden sobrescribir para añadir ToolCallBehavior, etc.
+        /// </summary>
+        protected virtual OpenAIPromptExecutionSettings BuildExecutionSettings()
+            => new() { Temperature = Temperature, MaxTokens = MaxTokens };
+
+        /// <summary>
         /// Versión streaming del Execute.
         /// Devuelve tokens uno por uno mientras el LLM responde.
         /// El historial se guarda igual que en la versión normal.
@@ -146,14 +171,16 @@ namespace Application.Shared
                 request, sessionId, systemPrompt, ct
             );
 
+            // Pre-retrieval RAG — inyectar contexto antes de llamar al LLM
+            var ragContext = await FetchRagContextAsync(request.UserMessage, ct);
+            if (!string.IsNullOrEmpty(ragContext))
+                chatHistory.AddSystemMessage(ragContext);
+
             var kernel = KernelFactory.Create(KernelConfig, LoggerFactory);
+            ConfigureKernel(kernel);
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
-            var settings = new OpenAIPromptExecutionSettings
-            {
-                Temperature = Temperature,
-                MaxTokens = MaxTokens
-            };
+            var settings = BuildExecutionSettings();
 
             // Acumula el response completo para guardarlo en BD al final
             var fullResponse = new System.Text.StringBuilder();
