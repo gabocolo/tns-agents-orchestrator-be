@@ -229,6 +229,26 @@ namespace Application.Proposals
             return updated;
         }
 
+        public async Task<Proposal> UpdateStatusAsync(
+            Guid proposalId,
+            ProposalStatus newStatus,
+            CancellationToken ct = default)
+        {
+            var proposal = await _repo.GetByIdAsync(proposalId, ct)
+                ?? throw new KeyNotFoundException($"Propuesta {proposalId} no encontrada.");
+
+            proposal.Status = newStatus;
+            proposal.UpdatedAt = DateTime.UtcNow;
+
+            var updated = await _repo.UpdateAsync(proposal, ct);
+
+            _logger.LogInformation(
+                "[ProposalService] Status actualizado via Kanban. Id={Id} NuevoStatus={Status}",
+                proposalId, newStatus);
+
+            return updated;
+        }
+
         public async Task<bool> DeleteProposalAsync(Guid proposalId, CancellationToken ct = default)
         {
             var deleted = await _repo.DeleteAsync(proposalId, ct);

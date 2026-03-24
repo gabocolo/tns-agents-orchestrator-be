@@ -75,6 +75,17 @@ namespace Agent.Api.Models
         public required string UserId { get; init; }
     }
 
+    public class PatchStatusHttpRequest
+    {
+        /// <summary>
+        /// Entero que mapea a ProposalStatus:
+        /// 0 = Draft, 1 = InReview, 2 = PendingApproval, 3 = Approved, 4 = Rejected
+        /// </summary>
+        [Required]
+        [Range(0, 4)]
+        public int Status { get; init; }
+    }
+
     public class AddIterationHttpRequest
     {
         /// <summary>
