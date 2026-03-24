@@ -272,12 +272,17 @@ namespace Agent.Api.Controllers
 
         [HttpDelete("{id:guid}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
-            var deleted = await _service.DeleteProposalAsync(id, ct);
-            if (!deleted) return NotFound();
-            return NoContent();
+            try
+            {
+                var deleted = await _service.DeleteProposalAsync(id, ct);
+                if (!deleted) return NotFound();
+                return NoContent();
+            }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
         }
     }
 }

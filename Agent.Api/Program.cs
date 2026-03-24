@@ -1,4 +1,5 @@
 using Application.Proposals;
+using Application.Shared;
 using Domain.Interfaces;
 using Infrastructure.DependencyInjection;
 using Infrastructure.Persistence;
@@ -31,11 +32,24 @@ var sqlConnectionString = builder.Configuration["Infrastructure:SqlConnectionStr
     ?? throw new InvalidOperationException(
         "Configura 'Infrastructure:SqlConnectionString' en appsettings.");
 
+var openAiApiKey = builder.Configuration["Infrastructure:OpenAiApiKey"]
+    ?? throw new InvalidOperationException(
+        "Configura 'Infrastructure:OpenAiApiKey' en appsettings.");
+
 builder.Services.AddSingleton<IProposalRepository>(sp =>
     new ProposalRepository(
         sqlConnectionString,
         sp.GetRequiredService<ILogger<ProposalRepository>>()
     ));
+
+// KernelConfig + MetricsExtractor para el fallback de extracción de métricas vía LLM
+var openAiModel = builder.Configuration["Infrastructure:OpenAiModel"] ?? "gpt-4o-mini";
+builder.Services.AddSingleton(new KernelConfig
+{
+    ApiKey = openAiApiKey,
+    DeploymentName = openAiModel
+});
+builder.Services.AddSingleton<MetricsExtractor>();
 
 builder.Services.AddSingleton<IProposalService, ProposalService>();
 
@@ -43,10 +57,6 @@ builder.Services.AddSingleton<IProposalService, ProposalService>();
 var kbConfig = builder.Configuration
     .GetSection("KnowledgeBase")
     .Get<KnowledgeBaseConfig>() ?? new KnowledgeBaseConfig();
-
-var openAiApiKey = builder.Configuration["Infrastructure:OpenAiApiKey"]
-    ?? throw new InvalidOperationException(
-        "Configura 'Infrastructure:OpenAiApiKey' en appsettings.");
 
 builder.Services.AddKnowledgeBase(kbConfig, openAiApiKey);
 

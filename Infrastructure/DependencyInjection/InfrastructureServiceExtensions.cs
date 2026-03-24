@@ -85,6 +85,9 @@ namespace Infrastructure.DependencyInjection
                     sp.GetRequiredService<ILogger<ProposalRepository>>()
                 ));
 
+            // Extractor de métricas (fallback LLM para iteraciones sin métricas)
+            services.AddSingleton<MetricsExtractor>();
+
             // Servicio de propuestas
             services.AddSingleton<IProposalService, ProposalService>();
 

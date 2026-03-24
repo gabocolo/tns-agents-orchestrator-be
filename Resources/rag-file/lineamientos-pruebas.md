@@ -1,0 +1,2 @@
+- para los nuevos proyectos los servicios RESTful no se pueden conectar directamente a servicios SOAP
+- Las base de datos Mongo DB solo estan permitidas si el sistema debe ser extremadamente rapido en consultas

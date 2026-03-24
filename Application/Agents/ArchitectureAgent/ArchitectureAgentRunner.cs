@@ -154,6 +154,13 @@ namespace Application.Agents.ArchitectureAgent
                 .Replace("##ITERATION_START##", string.Empty)
                 .Replace("##ITERATION_END##", string.Empty);
 
+            // Quitar bloque de métricas (ya fue emitido como evento SSE separado)
+            clean = Regex.Replace(
+                clean,
+                @"```json:metrics\s*\{[\s\S]*?\}\s*```",
+                string.Empty,
+                RegexOptions.None);
+
             // Quitar bloque de referencias (ya fue emitido como evento SSE separado)
             clean = Regex.Replace(
                 clean,

@@ -7,11 +7,16 @@ namespace Application.Proposals
     public class ProposalService : IProposalService
     {
         private readonly IProposalRepository _repo;
+        private readonly MetricsExtractor _metricsExtractor;
         private readonly ILogger<ProposalService> _logger;
 
-        public ProposalService(IProposalRepository repo, ILogger<ProposalService> logger)
+        public ProposalService(
+            IProposalRepository repo,
+            MetricsExtractor metricsExtractor,
+            ILogger<ProposalService> logger)
         {
             _repo = repo;
+            _metricsExtractor = metricsExtractor;
             _logger = logger;
         }
 
@@ -85,6 +90,21 @@ namespace Application.Proposals
 
             iteration.Version = nextVersion;
             iteration.CreatedAt = DateTime.UtcNow;
+
+            // Fallback: si las métricas vienen vacías pero hay contenido, extraerlas con LLM
+            var metricsEmpty = iteration.Components.Count == 0
+                            && iteration.TeamSize == 0
+                            && iteration.DurationWeeks == 0
+                            && iteration.BudgetUsd == 0;
+
+            if (metricsEmpty && !string.IsNullOrWhiteSpace(iteration.Content))
+            {
+                _logger.LogInformation(
+                    "[ProposalService] Métricas vacías — extrayendo vía LLM. ProposalId={Id}",
+                    proposalId);
+
+                await _metricsExtractor.ExtractAndApplyAsync(iteration, ct);
+            }
 
             var saved = await _repo.AddIterationAsync(proposalId, iteration, ct);
 
@@ -251,6 +271,14 @@ namespace Application.Proposals
 
         public async Task<bool> DeleteProposalAsync(Guid proposalId, CancellationToken ct = default)
         {
+            var proposal = await _repo.GetByIdAsync(proposalId, ct);
+            if (proposal == null)
+                return false;
+
+            if (proposal.Status != ProposalStatus.Draft)
+                throw new InvalidOperationException(
+                    "Solo se pueden eliminar propuestas en estado borrador.");
+
             var deleted = await _repo.DeleteAsync(proposalId, ct);
             if (deleted)
                 _logger.LogInformation("[ProposalService] Propuesta eliminada. Id={Id}", proposalId);
