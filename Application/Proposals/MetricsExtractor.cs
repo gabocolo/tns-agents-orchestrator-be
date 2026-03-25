@@ -25,7 +25,6 @@ namespace Application.Proposals
             - components: lista de nombres de componentes o servicios principales mencionados
             - teamSize: número de personas requeridas para el equipo
             - durationWeeks: duración estimada del proyecto en semanas
-            - budgetUsd: presupuesto estimado en dólares USD
             - riskLevel: nivel de riesgo general, debe ser exactamente "low", "medium" o "high"
 
             Si algún dato no está explícito, infiere un valor razonable basado en la complejidad y alcance descritos.
@@ -101,9 +100,6 @@ namespace Application.Proposals
                 if (metrics.DurationWeeks > 0)
                     iteration.DurationWeeks = metrics.DurationWeeks;
 
-                if (metrics.BudgetUsd > 0)
-                    iteration.BudgetUsd = metrics.BudgetUsd;
-
                 if (!string.IsNullOrEmpty(metrics.RiskLevel))
                 {
                     if (Enum.TryParse<RiskLevel>(metrics.RiskLevel, true, out var parsed))
@@ -128,7 +124,6 @@ namespace Application.Proposals
             public List<string>? Components { get; set; }
             public int TeamSize { get; set; }
             public int DurationWeeks { get; set; }
-            public decimal BudgetUsd { get; set; }
             public string? RiskLevel { get; set; }
         }
     }
