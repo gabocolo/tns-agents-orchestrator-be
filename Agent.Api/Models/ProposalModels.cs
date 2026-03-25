@@ -60,7 +60,7 @@ namespace Agent.Api.Models
         public required string UserId { get; init; }
 
         /// <summary>
-        /// "Approve", "Reject", "RequestChanges"
+        /// "Approve" (Aprobar), "Reject" (Rechazar), "RequestChanges" (Solicitar cambios)
         /// </summary>
         [Required]
         public required string Decision { get; init; }
@@ -79,7 +79,7 @@ namespace Agent.Api.Models
     {
         /// <summary>
         /// Entero que mapea a ProposalStatus:
-        /// 0 = Draft, 1 = InReview, 2 = PendingApproval, 3 = Approved, 4 = Rejected
+        /// 0 = Borrador, 1 = En revisión, 2 = Pendiente de aprobación, 3 = Aprobada, 4 = Rechazada
         /// </summary>
         [Required]
         [Range(0, 4)]

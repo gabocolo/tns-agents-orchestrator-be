@@ -257,7 +257,7 @@ namespace Agent.Api.Controllers
                 return BadRequest(ModelState);
 
             if (!Enum.IsDefined(typeof(ProposalStatus), request.Status))
-                return BadRequest(new { error = $"Status inválido: {request.Status}. Valores válidos: 0=Draft, 1=InReview, 2=PendingApproval, 3=Approved, 4=Rejected." });
+                return BadRequest(new { error = $"Estado inválido: {request.Status}. Valores válidos: 0=Borrador, 1=En revisión, 2=Pendiente de aprobación, 3=Aprobada, 4=Rechazada." });
 
             try
             {
