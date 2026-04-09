@@ -240,16 +240,49 @@ namespace Agent.Api.Controllers
             catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         }
 
+        // ─── PATCH proposals/{id} ─────────────────────────────────────────────
+        // Actualización directa de status desde el tablero Kanban (drag & drop).
+        // No reemplaza los flujos de workflow (submit, decide) — es solo para admin/manager.
+
+        [HttpPatch("{id:guid}")]
+        [ProducesResponseType(typeof(ProposalDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> PatchStatus(
+            Guid id,
+            [FromBody] PatchStatusHttpRequest request,
+            CancellationToken ct)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            if (!Enum.IsDefined(typeof(ProposalStatus), request.Status))
+                return BadRequest(new { error = $"Estado inválido: {request.Status}. Valores válidos: 0=Borrador, 1=En revisión, 2=Pendiente de aprobación, 3=Aprobada, 4=Rechazada." });
+
+            try
+            {
+                var newStatus = (ProposalStatus)request.Status;
+                var proposal = await _service.UpdateStatusAsync(id, newStatus, ct);
+                return Ok(ProposalMapper.ToDto(proposal));
+            }
+            catch (KeyNotFoundException) { return NotFound(); }
+        }
+
         // ─── DELETE api/proposals/{id} ────────────────────────────────────────
 
         [HttpDelete("{id:guid}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
-            var deleted = await _service.DeleteProposalAsync(id, ct);
-            if (!deleted) return NotFound();
-            return NoContent();
+            try
+            {
+                var deleted = await _service.DeleteProposalAsync(id, ct);
+                if (!deleted) return NotFound();
+                return NoContent();
+            }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
         }
     }
 }

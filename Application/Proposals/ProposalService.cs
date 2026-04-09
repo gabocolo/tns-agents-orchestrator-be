@@ -7,11 +7,16 @@ namespace Application.Proposals
     public class ProposalService : IProposalService
     {
         private readonly IProposalRepository _repo;
+        private readonly MetricsExtractor _metricsExtractor;
         private readonly ILogger<ProposalService> _logger;
 
-        public ProposalService(IProposalRepository repo, ILogger<ProposalService> logger)
+        public ProposalService(
+            IProposalRepository repo,
+            MetricsExtractor metricsExtractor,
+            ILogger<ProposalService> logger)
         {
             _repo = repo;
+            _metricsExtractor = metricsExtractor;
             _logger = logger;
         }
 
@@ -86,6 +91,21 @@ namespace Application.Proposals
             iteration.Version = nextVersion;
             iteration.CreatedAt = DateTime.UtcNow;
 
+            // Fallback: si las métricas vienen vacías pero hay contenido, extraerlas con LLM
+            var metricsEmpty = iteration.Components.Count == 0
+                            && iteration.TeamSize == 0
+                            && iteration.DurationWeeks == 0
+                            && iteration.BudgetUsd == 0;
+
+            if (metricsEmpty && !string.IsNullOrWhiteSpace(iteration.Content))
+            {
+                _logger.LogInformation(
+                    "[ProposalService] Métricas vacías — extrayendo vía LLM. ProposalId={Id}",
+                    proposalId);
+
+                await _metricsExtractor.ExtractAndApplyAsync(iteration, ct);
+            }
+
             var saved = await _repo.AddIterationAsync(proposalId, iteration, ct);
 
             _logger.LogInformation(
@@ -105,10 +125,10 @@ namespace Application.Proposals
                 ?? throw new KeyNotFoundException($"Propuesta {proposalId} no encontrada.");
 
             if (proposal.CreatedByUserId != userId)
-                throw new UnauthorizedAccessException("Solo el builder puede enviar la propuesta a revisión.");
+                throw new UnauthorizedAccessException("Solo el constructor puede enviar la propuesta a revisión.");
 
             if (proposal.Status != ProposalStatus.Draft)
-                throw new InvalidOperationException($"Solo se puede enviar a revisión una propuesta en Draft. Estado actual: {proposal.Status}.");
+                throw new InvalidOperationException($"Solo se puede enviar a revisión una propuesta en estado Borrador. Estado actual: {StatusToSpanish(proposal.Status)}.");
 
             // Aprueba el step del builder y cambia el estado
             var builderStep = proposal.ApprovalFlow.First(s => s.Role == ProposalRole.Builder);
@@ -168,7 +188,7 @@ namespace Application.Proposals
             switch (step.Role)
             {
                 case ProposalRole.Reviewer:
-                    ValidateStatus(proposal, ProposalStatus.InReview, "El reviewer solo puede decidir cuando la propuesta está InReview.");
+                    ValidateStatus(proposal, ProposalStatus.InReview, "El revisor solo puede decidir cuando la propuesta está en revisión.");
 
                     if (decision == "approve")
                     {
@@ -187,12 +207,12 @@ namespace Application.Proposals
                     }
                     else
                     {
-                        throw new ArgumentException($"Decisión no válida para Reviewer: '{request.Decision}'. Use 'Approve' o 'RequestChanges'.");
+                        throw new ArgumentException($"Decisión no válida para el Revisor: '{request.Decision}'. Use 'Approve' o 'RequestChanges'.");
                     }
                     break;
 
                 case ProposalRole.Approver:
-                    ValidateStatus(proposal, ProposalStatus.PendingApproval, "El approver solo puede decidir cuando la propuesta está PendingApproval.");
+                    ValidateStatus(proposal, ProposalStatus.PendingApproval, "El aprobador solo puede decidir cuando la propuesta está pendiente de aprobación.");
 
                     if (decision == "approve")
                     {
@@ -206,12 +226,12 @@ namespace Application.Proposals
                     }
                     else
                     {
-                        throw new ArgumentException($"Decisión no válida para Approver: '{request.Decision}'. Use 'Approve' o 'Reject'.");
+                        throw new ArgumentException($"Decisión no válida para el Aprobador: '{request.Decision}'. Use 'Approve' o 'Reject'.");
                     }
                     break;
 
                 default:
-                    throw new InvalidOperationException($"El rol {step.Role} no puede tomar decisiones en el flujo.");
+                    throw new InvalidOperationException($"El rol {RoleToSpanish(step.Role)} no puede tomar decisiones en el flujo.");
             }
 
             step.Note = request.Note;
@@ -229,8 +249,36 @@ namespace Application.Proposals
             return updated;
         }
 
+        public async Task<Proposal> UpdateStatusAsync(
+            Guid proposalId,
+            ProposalStatus newStatus,
+            CancellationToken ct = default)
+        {
+            var proposal = await _repo.GetByIdAsync(proposalId, ct)
+                ?? throw new KeyNotFoundException($"Propuesta {proposalId} no encontrada.");
+
+            proposal.Status = newStatus;
+            proposal.UpdatedAt = DateTime.UtcNow;
+
+            var updated = await _repo.UpdateAsync(proposal, ct);
+
+            _logger.LogInformation(
+                "[ProposalService] Status actualizado via Kanban. Id={Id} NuevoStatus={Status}",
+                proposalId, newStatus);
+
+            return updated;
+        }
+
         public async Task<bool> DeleteProposalAsync(Guid proposalId, CancellationToken ct = default)
         {
+            var proposal = await _repo.GetByIdAsync(proposalId, ct);
+            if (proposal == null)
+                return false;
+
+            if (proposal.Status != ProposalStatus.Draft)
+                throw new InvalidOperationException(
+                    "Solo se pueden eliminar propuestas en estado borrador.");
+
             var deleted = await _repo.DeleteAsync(proposalId, ct);
             if (deleted)
                 _logger.LogInformation("[ProposalService] Propuesta eliminada. Id={Id}", proposalId);
@@ -242,5 +290,23 @@ namespace Application.Proposals
             if (proposal.Status != expected)
                 throw new InvalidOperationException(message);
         }
+
+        private static string StatusToSpanish(ProposalStatus status) => status switch
+        {
+            ProposalStatus.Draft           => "Borrador",
+            ProposalStatus.InReview        => "En revisión",
+            ProposalStatus.PendingApproval => "Pendiente de aprobación",
+            ProposalStatus.Approved        => "Aprobada",
+            ProposalStatus.Rejected        => "Rechazada",
+            _                              => status.ToString()
+        };
+
+        private static string RoleToSpanish(ProposalRole role) => role switch
+        {
+            ProposalRole.Builder  => "Constructor",
+            ProposalRole.Reviewer => "Revisor",
+            ProposalRole.Approver => "Aprobador",
+            _                    => role.ToString()
+        };
     }
 }

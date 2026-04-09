@@ -11,6 +11,7 @@ namespace Application.Proposals
         Task<Proposal> SubmitForReviewAsync(Guid proposalId, string userId, CancellationToken ct = default);
         Task<ProposalComment> AddCommentAsync(Guid proposalId, AddCommentRequest request, CancellationToken ct = default);
         Task<Proposal> DecideAsync(Guid proposalId, DecisionRequest request, CancellationToken ct = default);
+        Task<Proposal> UpdateStatusAsync(Guid proposalId, ProposalStatus newStatus, CancellationToken ct = default);
         Task<bool> DeleteProposalAsync(Guid proposalId, CancellationToken ct = default);
     }
 }
