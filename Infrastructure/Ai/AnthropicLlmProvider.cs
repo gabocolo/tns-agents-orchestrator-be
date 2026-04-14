@@ -1,3 +1,4 @@
+using Domain.Entities;
 using Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
@@ -14,9 +15,14 @@ namespace Infrastructure.Ai
         private readonly ILogger<AnthropicLlmProvider> _logger;
 
         private const string ApiUrl = "https://api.anthropic.com/v1/messages";
-        private const string Model = "claude-sonnet-4-6";
+        private const string SonnetModel = "claude-sonnet-4-6";
+        private const string OpusModel = "claude-opus-4-6";
         private const string ApiVersion = "2023-06-01";
         private const int MaxTokens = 4096;
+        private const int SpecMaxTokens = 8192;
+
+        // Backward compat
+        private const string Model = SonnetModel;
 
         public AnthropicLlmProvider(
             HttpClient httpClient,
@@ -107,6 +113,172 @@ namespace Infrastructure.Ai
                 Model = anthropicResponse.Model ?? Model,
                 TokensUsed = tokensUsed
             };
+        }
+
+        // ── Spec Generation (ADR-P001) ─────────────────────────────────────────
+
+        public async Task<LlmSpecResult> GenerateSpecAsync(
+            SpecLevel level,
+            string systemPrompt,
+            string userPrompt,
+            CancellationToken ct = default)
+        {
+            // ADR-P001: Opus para L1, Sonnet para L2/L3
+            var model = level == SpecLevel.L1 ? OpusModel : SonnetModel;
+
+            var response = await CallAnthropicAsync(model, SpecMaxTokens, systemPrompt, userPrompt, ct);
+            var textContent = response.Content
+                .FirstOrDefault(c => c.Type == "text")?.Text ?? "{}";
+
+            var tokensUsed = (response.Usage?.InputTokens ?? 0) + (response.Usage?.OutputTokens ?? 0);
+
+            // Parsear JSON del LLM
+            Dictionary<string, object> content;
+            try
+            {
+                content = JsonSerializer.Deserialize<Dictionary<string, object>>(textContent, JsonOptions)
+                    ?? new Dictionary<string, object>();
+            }
+            catch (JsonException)
+            {
+                // Si el LLM devolvió markdown con bloques de código, intentar extraer JSON
+                var jsonStart = textContent.IndexOf('{');
+                var jsonEnd = textContent.LastIndexOf('}');
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonFragment = textContent[jsonStart..(jsonEnd + 1)];
+                    content = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonFragment, JsonOptions)
+                        ?? new Dictionary<string, object>();
+                }
+                else
+                {
+                    content = new Dictionary<string, object> { ["raw"] = textContent };
+                }
+            }
+
+            // Extraer advertencia si existe (L3: > 400 lineas)
+            string? warning = null;
+            if (content.TryGetValue("advertencia", out var adv))
+            {
+                warning = adv?.ToString();
+                content.Remove("advertencia");
+            }
+
+            // Extraer titulo del contenido si existe
+            var title = content.TryGetValue("objetivo", out var obj) ? obj?.ToString() ?? "" : "";
+            if (string.IsNullOrEmpty(title) && content.TryGetValue("descripcion", out var desc))
+                title = desc?.ToString() ?? "";
+            if (string.IsNullOrEmpty(title) && content.TryGetValue("cambio", out var cambio))
+                title = cambio?.ToString() ?? "";
+            if (title.Length > 300) title = title[..297] + "...";
+
+            _logger.LogInformation(
+                "[AnthropicLlmProvider] Spec generada. Model={Model} Level={Level} Tokens={Tokens}",
+                model, level, tokensUsed);
+
+            return new LlmSpecResult
+            {
+                Title = title,
+                Content = content,
+                Model = response.Model ?? model,
+                TokensUsed = tokensUsed,
+                Warning = warning
+            };
+        }
+
+        public async Task<LlmSectionResult> RegenerateSectionAsync(
+            string systemPrompt,
+            string userPrompt,
+            CancellationToken ct = default)
+        {
+            var response = await CallAnthropicAsync(SonnetModel, MaxTokens, systemPrompt, userPrompt, ct);
+            var textContent = response.Content
+                .FirstOrDefault(c => c.Type == "text")?.Text ?? "{}";
+
+            var tokensUsed = (response.Usage?.InputTokens ?? 0) + (response.Usage?.OutputTokens ?? 0);
+
+            object sectionContent;
+            try
+            {
+                sectionContent = JsonSerializer.Deserialize<object>(textContent, JsonOptions) ?? textContent;
+            }
+            catch (JsonException)
+            {
+                sectionContent = textContent;
+            }
+
+            _logger.LogInformation(
+                "[AnthropicLlmProvider] Sección regenerada. Model={Model} Tokens={Tokens}",
+                SonnetModel, tokensUsed);
+
+            return new LlmSectionResult
+            {
+                SectionContent = sectionContent,
+                Model = response.Model ?? SonnetModel,
+                TokensUsed = tokensUsed
+            };
+        }
+
+        // ── Shared API call ──────────────────────────────────────────────────
+
+        private async Task<AnthropicResponse> CallAnthropicAsync(
+            string model,
+            int maxTokens,
+            string systemPrompt,
+            string userMessage,
+            CancellationToken ct)
+        {
+            var requestBody = new AnthropicRequest
+            {
+                Model = model,
+                MaxTokens = maxTokens,
+                System = systemPrompt,
+                Messages = new List<AnthropicMessage>
+                {
+                    new() { Role = "user", Content = userMessage }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(requestBody, JsonOptions);
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
+            request.Headers.Add("x-api-key", _apiKey);
+            request.Headers.Add("anthropic-version", ApiVersion);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            _logger.LogInformation(
+                "[AnthropicLlmProvider] Enviando solicitud. Model={Model} MaxTokens={MaxTokens}",
+                model, maxTokens);
+
+            HttpResponseMessage httpResponse;
+            try
+            {
+                httpResponse = await _httpClient.SendAsync(request, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[AnthropicLlmProvider] Error de conexión con Anthropic API.");
+                throw new InvalidOperationException($"No se pudo conectar con Anthropic API: {ex.Message}", ex);
+            }
+
+            var responseBody = await httpResponse.Content.ReadAsStringAsync(ct);
+
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "[AnthropicLlmProvider] Respuesta no exitosa. Status={Status} Body={Body}",
+                    httpResponse.StatusCode, responseBody);
+                throw new InvalidOperationException(
+                    $"Anthropic API respondió con {(int)httpResponse.StatusCode}: {responseBody}");
+            }
+
+            var anthropicResponse = JsonSerializer.Deserialize<AnthropicResponse>(responseBody, JsonOptions)
+                ?? throw new InvalidOperationException("Respuesta vacía del LLM.");
+
+            if (anthropicResponse.Content.Count == 0)
+                throw new InvalidOperationException("Respuesta sin contenido del LLM.");
+
+            return anthropicResponse;
         }
 
         // ── Prompt construction ───────────────────────────────────────────────
